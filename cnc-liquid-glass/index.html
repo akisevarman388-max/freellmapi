@@ -1,0 +1,1454 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>ЧПУ 2в1 — Liquid Glass</title>
+    <script src="assets/lib/gsap.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./assets/lib/three/build/three.module.js",
+          "three/addons/": "./assets/lib/three/addons/"
+        }
+      }
+    </script>
+    <style>
+      @font-face {
+        font-family: "Inter Cyr";
+        src: url("assets/fonts/Inter_600SemiBold.ttf") format("truetype");
+        font-weight: 600;
+      }
+      @font-face {
+        font-family: "Inter Cyr";
+        src: url("assets/fonts/Inter_700Bold.ttf") format("truetype");
+        font-weight: 700;
+      }
+      @font-face {
+        font-family: "Inter Cyr";
+        src: url("assets/fonts/Inter_900Black.ttf") format("truetype");
+        font-weight: 900;
+      }
+      :root {
+        --ground: #07050f;
+        --primary: #7a5cff;
+        --light: #b7a6ff;
+        --accent: #d1fe17;
+        --ink: #ffffff;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: var(--ground);
+      }
+      #root {
+        position: relative;
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: var(--ground);
+        font-family: "Inter Cyr", sans-serif;
+        color: var(--ink);
+      }
+      #gl {
+        position: absolute;
+        inset: 0;
+        width: 1080px;
+        height: 1920px;
+        display: block;
+      }
+      /* Soft lens vignette and the accent flash sit between WebGL and the titles. */
+      #vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 2;
+        background: radial-gradient(120% 80% at 50% 45%, rgba(7, 5, 15, 0) 55%, rgba(4, 2, 10, 0.72) 100%);
+      }
+      #flash {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 3;
+        opacity: 0;
+        mix-blend-mode: screen;
+        background: radial-gradient(
+          70% 46% at 50% 42%,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(183, 166, 255, 0.6) 32%,
+          rgba(122, 92, 255, 0.18) 60%,
+          rgba(122, 92, 255, 0) 80%
+        );
+      }
+      #hud {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        pointer-events: none;
+      }
+
+      /* ---------- Liquid-glass caption plate ---------- */
+      .cap {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      .plate {
+        position: absolute;
+        left: 540px;
+        top: 1172px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 24px 44px 28px 36px;
+        border-radius: 999px;
+        white-space: nowrap;
+        font-weight: 700;
+        font-size: 68px;
+        line-height: 1;
+        letter-spacing: -0.025em;
+        color: #fff;
+        opacity: 0;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(
+          160deg,
+          rgba(255, 255, 255, 0.34) 0%,
+          rgba(255, 255, 255, 0.12) 38%,
+          rgba(255, 255, 255, 0.05) 62%,
+          rgba(183, 166, 255, 0.16) 100%
+        );
+        -webkit-backdrop-filter: blur(26px) saturate(180%) brightness(1.06);
+        backdrop-filter: blur(26px) saturate(180%) brightness(1.06);
+        border: 2px solid rgba(255, 255, 255, 0.58);
+        box-shadow:
+          inset 0 2px 1px rgba(255, 255, 255, 0.7),
+          inset 0 -12px 26px rgba(122, 92, 255, 0.22),
+          inset 0 0 0 1px rgba(183, 166, 255, 0.18),
+          0 26px 70px rgba(4, 2, 12, 0.55),
+          0 0 48px rgba(122, 92, 255, 0.22);
+        text-shadow: 0 2px 16px rgba(18, 8, 60, 0.45);
+      }
+      .plate .w {
+        display: inline-block;
+      }
+      .plate .hl {
+        color: var(--accent);
+        text-shadow: 0 0 22px rgba(209, 254, 23, 0.35);
+      }
+      .dot {
+        display: inline-block;
+        flex: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow:
+          0 0 12px rgba(209, 254, 23, 0.9),
+          0 0 30px rgba(209, 254, 23, 0.45);
+      }
+
+      /* ---------- Final card ---------- */
+      .kicker {
+        position: absolute;
+        left: 540px;
+        top: 392px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        transform: translate(-50%, -50%);
+        font-weight: 600;
+        font-size: 34px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: rgba(233, 227, 255, 0.92);
+        opacity: 0;
+        white-space: nowrap;
+      }
+      .kicker .dot {
+        width: 12px;
+        height: 12px;
+      }
+      .cta-label {
+        position: absolute;
+        left: 540px;
+        top: 1080px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        transform: translate(-50%, -50%);
+        font-weight: 700;
+        font-size: 66px;
+        letter-spacing: -0.02em;
+        color: #fff;
+        white-space: nowrap;
+        opacity: 0;
+        text-shadow: 0 2px 18px rgba(30, 12, 90, 0.55);
+      }
+      .cta-label .arrow {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #0b0716;
+        font-size: 40px;
+        font-weight: 900;
+        box-shadow: 0 0 26px rgba(209, 254, 23, 0.55);
+        text-shadow: none;
+      }
+      .cta-sub {
+        position: absolute;
+        left: 540px;
+        top: 1200px;
+        transform: translate(-50%, -50%);
+        font-weight: 600;
+        font-size: 32px;
+        letter-spacing: 0.04em;
+        color: rgba(220, 212, 255, 0.85);
+        white-space: nowrap;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="34"
+      data-width="1080"
+      data-height="1920"
+    >
+      <canvas
+        id="gl"
+        class="clip"
+        width="1080"
+        height="1920"
+        data-start="0"
+        data-duration="34"
+        data-track-index="0"
+        data-track-kind="graphics"
+      ></canvas>
+      <svg id="fx" width="0" height="0" style="position: absolute" aria-hidden="true">
+        <filter id="vblur" x="0" y="-10%" width="100%" height="120%" color-interpolation-filters="sRGB">
+          <feGaussianBlur id="vblur-std" stdDeviation="0 0" />
+        </filter>
+      </svg>
+      <div id="vignette"></div>
+      <div id="flash"></div>
+
+      <!-- Captions: one plate per voiceover phrase. Timing lives on each clip; the plate's
+           entrance and exit are computed from it, so retiming a clip in Studio retimes its motion.
+           data-accent fires the flash + camera shake on that word. -->
+      <div id="hud">
+        <div id="cap-01" class="clip cap" data-start="0.4" data-duration="0.9" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Фрезер</span></div>
+        </div>
+        <div id="cap-02" class="clip cap" data-start="1.3" data-duration="0.95" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">и</span><span class="w">лазер</span></div>
+        </div>
+        <div id="cap-03" class="clip cap" data-start="2.25" data-duration="1.35" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Два</span><span class="w">станка?</span></div>
+        </div>
+        <div id="cap-04" class="clip cap" data-start="3.75" data-duration="0.8" data-track-index="1" data-track-kind="captions" data-accent="1">
+          <div class="plate"><i class="dot"></i><span class="w">Нет.</span></div>
+        </div>
+        <div id="cap-05" class="clip cap" data-start="4.55" data-duration="1.7" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w hl">Один</span><span class="w">станок</span></div>
+        </div>
+        <div id="cap-06" class="clip cap" data-start="7.45" data-duration="1.2" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Одна</span><span class="w">рама</span></div>
+        </div>
+        <div id="cap-07" class="clip cap" data-start="8.65" data-duration="1.2" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Два</span><span class="w">модуля</span></div>
+        </div>
+        <div id="cap-08" class="clip cap" data-start="9.85" data-duration="0.9" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Фрезеровка</span></div>
+        </div>
+        <div id="cap-09" class="clip cap" data-start="10.75" data-duration="0.8" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Дерево</span></div>
+        </div>
+        <div id="cap-10" class="clip cap" data-start="11.55" data-duration="0.8" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Пластик</span></div>
+        </div>
+        <div id="cap-11" class="clip cap" data-start="12.35" data-duration="0.85" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Алюминий</span></div>
+        </div>
+        <div id="cap-12" class="clip cap" data-start="13.2" data-duration="0.92" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Щелчок —</span></div>
+        </div>
+        <div id="cap-13" class="clip cap" data-start="14.12" data-duration="1.38" data-track-index="1" data-track-kind="captions" data-accent="1">
+          <div class="plate"><i class="dot"></i><span class="w">и</span><span class="w">это</span><span class="w hl">лазер</span></div>
+        </div>
+        <div id="cap-14" class="clip cap" data-start="15.5" data-duration="1.45" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Гравировка</span></div>
+        </div>
+        <div id="cap-15" class="clip cap" data-start="17.1" data-duration="1.4" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Резка</span></div>
+        </div>
+        <div id="cap-16" class="clip cap" data-start="18.6" data-duration="1.15" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Меньше</span><span class="w">места</span></div>
+        </div>
+        <div id="cap-17" class="clip cap" data-start="19.75" data-duration="1.15" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Меньше</span><span class="w">затрат</span></div>
+        </div>
+        <div id="cap-18" class="clip cap" data-start="20.9" data-duration="1.15" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Больше</span><span class="w hl">заказов</span></div>
+        </div>
+        <div id="cap-19" class="clip cap" data-start="22.95" data-duration="2.0" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">Фрезер</span><span class="w">+</span><span class="w">лазер</span></div>
+        </div>
+        <div id="cap-20" class="clip cap" data-start="24.95" data-duration="1.9" data-track-index="1" data-track-kind="captions">
+          <div class="plate"><i class="dot"></i><span class="w">на</span><span class="w">одном</span><span class="w hl">станке</span></div>
+        </div>
+
+        <div id="kicker" class="clip cap" data-start="22.9" data-duration="11.1" data-track-index="2">
+          <div class="kicker"><i class="dot"></i><span>ЧПУ-станок 2 в 1</span></div>
+        </div>
+        <div id="cta" class="clip cap" data-start="26.9" data-duration="7.1" data-track-index="3">
+          <div class="cta-label"><span>Узнать цену</span><span class="arrow">→</span></div>
+          <div class="cta-sub">ссылка в профиле</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Time binding. HyperFrames seeks a paused GSAP timeline registered on window.__timelines
+         and dispatches hf-seek with the same time. Both feed one pure function: render(t).
+         The single linear tween is only a clock, there are no keyframes. -->
+    <script>
+      (function () {
+        var root = document.getElementById("root");
+        var D = parseFloat(root.dataset.duration) || 34;
+        var host = { D: D, render: null, lastT: NaN, pendingT: 0 };
+        window.__cnc = host;
+        window.__hf = window.__hf || {};
+        window.__hf.buildReady = window.__hf.buildReady || {};
+        window.__hf.buildReady["main"] = new Promise(function (resolve) {
+          host.ready = resolve;
+        });
+        host.draw = function (t) {
+          host.pendingT = t;
+          if (!host.render) return;
+          if (t === host.lastT) return; // GSAP onUpdate and hf-seek report the same frame: draw once.
+          host.lastT = t;
+          host.render(t);
+        };
+        var clock = { t: 0 };
+        var tl = gsap.timeline({ paused: true });
+        tl.to(clock, {
+          t: D,
+          duration: D,
+          ease: "none",
+          onUpdate: function () {
+            host.draw(clock.t);
+          },
+        });
+        window.addEventListener("hf-seek", function (e) {
+          host.draw(e.detail.time);
+        });
+        window.__timelines = window.__timelines || {};
+        window.__timelines["main"] = tl;
+      })();
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+      import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
+      import { Font } from "three/addons/loaders/FontLoader.js";
+      import { TTFLoader } from "three/addons/loaders/TTFLoader.js";
+      import { toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
+
+      const host = window.__cnc;
+      const W = 1080;
+      const H = 1920;
+      const D = host.D;
+
+      // ------------------------------------------------------------------ palette
+      const HEX = { bg: "#07050f", primary: "#7A5CFF", light: "#B7A6FF", accent: "#D1FE17" };
+      const C = (h, k = 1) => new THREE.Color(h).multiplyScalar(k);
+
+      // ------------------------------------------------------------------ math (pure)
+      const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+      const seg = (t, a, b) => clamp01((t - a) / (b - a));
+      const lerp = (a, b, k) => a + (b - a) * k;
+      const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+      const outBack = (x, s = 1.70158) => {
+        const c3 = s + 1;
+        return 1 + c3 * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2);
+      };
+      const outCubic = (x) => 1 - Math.pow(1 - x, 3);
+      const inCubic = (x) => x * x * x;
+      const inOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+      const smooth = (x) => x * x * (3 - 2 * x);
+      const hash = (n) => {
+        const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+        return s - Math.floor(s);
+      };
+      const wobble = (t, a, b, p) => 0.6 * Math.sin(t * a + p) + 0.4 * Math.sin(t * b + p * 2.3);
+
+      // ------------------------------------------------------------------ story clock (seconds)
+      const T = {
+        hookImpact: 0.32,
+        flip: [3.49, 4.11], // outBack(1.4) crosses 1 at 41.7% -> lands on "Нет." at 3.75
+        s1Exit: [6.2, 6.82],
+        cut1: 6.8,
+        s2In: [6.72, 7.72],
+        travel1: [7.9, 9.55],
+        plunge: [9.55, 9.85],
+        mill: [9.85, 12.8],
+        retract: [12.8, 13.1],
+        spOut: [13.1, 13.5],
+        lzIn: [13.9, 14.5], // lock (outBack crossing) at 14.12 -> "и это лазер"
+        travel2: [14.5, 14.85],
+        engrave: [14.85, 16.95],
+        travel3: [16.95, 17.15],
+        cut: [17.15, 18.5],
+        park: [18.55, 19.6],
+        s2Exit: [21.75, 22.15],
+        cut2: 22.05,
+        s3In: [22.05, 22.95], // title lands at 22.38
+        ctaIn: [26.9, 27.55],
+        press: 29.6,
+      };
+      // the moment an outBack(s) move first reaches its target: the visible "hit"
+      const backCross = (win, s) => win[0] + (1 - s / (s + 1)) * (win[1] - win[0]);
+      const lockT = backCross(T.lzIn, 1.8);
+      const titleLandT = backCross(T.s3In, 1.3);
+
+      // Flash + shake events: 3D impacts plus every caption marked data-accent.
+      const events = [
+        { t: T.hookImpact, f: 1.0, s: 1.0 },
+        { t: T.cut1 - 0.03, f: 0.85, s: 0.25 },
+        { t: lockT, f: 0.9, s: 0.85 },
+        { t: titleLandT, f: 1.0, s: 0.9 },
+        { t: T.press, f: 0.6, s: 0.4 },
+      ];
+      const captions = [...document.querySelectorAll(".cap[id^='cap-']")].map((el, i) => ({
+        el,
+        plate: el.querySelector(".plate"),
+        words: [...el.querySelectorAll(".w")],
+        start: parseFloat(el.dataset.start),
+        dur: parseFloat(el.dataset.duration),
+        accent: el.dataset.accent === "1",
+        mode: i % 2,
+      }));
+      for (const c of captions) {
+        if (c.accent && !events.some((e) => Math.abs(e.t - c.start) < 0.15)) events.push({ t: c.start, f: 0.8, s: 0.7 });
+      }
+      const flashAt = (t) => {
+        let f = 0;
+        for (const e of events) {
+          const x = t - e.t;
+          if (x >= 0 && x < 0.9) f += e.f * Math.exp(-x / 0.11);
+        }
+        return Math.min(f, 1.2);
+      };
+      const shakeAt = (t) => {
+        let s = 0;
+        for (const e of events) {
+          const x = t - e.t;
+          if (x >= 0 && x < 0.7) s += e.s * Math.exp(-x / 0.13);
+        }
+        return s;
+      };
+
+      // ------------------------------------------------------------------ renderer
+      const canvas = document.getElementById("gl");
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: false,
+        preserveDrawingBuffer: true,
+        powerPreference: "high-performance",
+      });
+      renderer.setPixelRatio(1);
+      renderer.setSize(W, H, false);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.0;
+      renderer.setClearColor(new THREE.Color(HEX.bg), 1);
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 200);
+
+      // ------------------------------------------------------------------ environment (PMREM)
+      // A dark violet room lit only by glowing strips of the primary colour and white:
+      // this is what the glass reflects and refracts at its edges.
+      {
+        const env = new THREE.Scene();
+        env.add(
+          new THREE.Mesh(
+            new THREE.SphereGeometry(40, 32, 16),
+            new THREE.MeshBasicMaterial({ color: C("#0a0716"), side: THREE.BackSide }),
+          ),
+        );
+        const strip = (w, h, color, k, pos, rotX = 0) => {
+          const m = new THREE.Mesh(
+            new THREE.PlaneGeometry(w, h),
+            new THREE.MeshBasicMaterial({ color: C(color, k), side: THREE.DoubleSide }),
+          );
+          m.position.copy(pos);
+          m.lookAt(0, pos.y, 0);
+          m.rotateX(rotX);
+          env.add(m);
+        };
+        const ring = (deg, w, color, k, y = 0, h = 16) => {
+          const a = THREE.MathUtils.degToRad(deg);
+          strip(w, h, color, k, new THREE.Vector3(9 * Math.sin(a), y, 9 * Math.cos(a)));
+        };
+        ring(-38, 0.42, "#ffffff", 7);
+        ring(28, 0.32, HEX.primary, 12);
+        ring(70, 0.16, "#ffffff", 9);
+        ring(128, 0.36, "#ffffff", 5);
+        ring(196, 0.9, HEX.light, 4);
+        ring(262, 0.22, "#ffffff", 8);
+        ring(300, 0.42, HEX.primary, 10);
+        // overhead softbox and a low violet horizon band
+        const top = new THREE.Mesh(
+          new THREE.PlaneGeometry(7, 0.7),
+          new THREE.MeshBasicMaterial({ color: C("#ffffff", 3.0), side: THREE.DoubleSide }),
+        );
+        top.position.set(0, 9, 0);
+        top.rotation.x = Math.PI / 2;
+        env.add(top);
+        const band = new THREE.Mesh(
+          new THREE.CylinderGeometry(10, 10, 0.9, 64, 1, true),
+          new THREE.MeshBasicMaterial({ color: C(HEX.primary, 3.2), side: THREE.DoubleSide }),
+        );
+        band.position.y = -3.2;
+        env.add(band);
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(env, 0.03).texture;
+        scene.environmentIntensity = 1.0;
+        pmrem.dispose();
+      }
+
+      // ------------------------------------------------------------------ background shader
+      const bgMat = new THREE.ShaderMaterial({
+        depthTest: false,
+        depthWrite: false,
+        uniforms: {
+          uTime: { value: 0 },
+          uFlash: { value: 0 },
+          uScroll: { value: 0 },
+          uAspect: { value: W / H },
+          uBg: { value: C(HEX.bg) },
+          uP: { value: C(HEX.primary) },
+          uL: { value: C(HEX.light) },
+        },
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          void main() { vUv = uv; gl_Position = vec4(position.xy, 0.9999, 1.0); }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform float uTime, uFlash, uScroll, uAspect;
+          uniform vec3 uBg, uP, uL;
+          varying vec2 vUv;
+          float h21(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+          // one flowing ribbon, repeated every 2.4 units across q.y so a scroll never empties the frame
+          vec3 ribbon(vec2 q, float i, vec3 col, float bright) {
+            float t = uTime;
+            float fr = 1.05 + 0.27 * i;
+            float sp = 0.13 + 0.04 * i;
+            float y = 0.6 * i
+              + 0.24 * sin(q.x * fr + t * sp + i * 1.7)
+              + 0.08 * sin(q.x * fr * 2.3 - t * sp * 1.7 + i * 3.1);
+            float d = q.y - y;
+            d = mod(d + 1.2, 2.4) - 1.2;
+            float w = 0.05 + 0.028 * sin(t * 0.31 + i * 2.0 + q.x * 1.4);
+            float core = exp(-d * d / (w * w * 0.035));
+            float glow = exp(-d * d / (w * w * 1.4));
+            float along = smoothstep(-0.45, 0.95, sin(q.x * 0.85 - t * 0.24 + i * 2.4));
+            return col * (core * 0.95 + glow * 0.22) * along * bright;
+          }
+          void main() {
+            vec2 p = (vUv - 0.5) * 2.0;
+            p.x *= uAspect;
+            p.y -= uScroll;
+            float a = -0.6;
+            vec2 q = mat2(cos(a), -sin(a), sin(a), cos(a)) * p;
+            vec3 col = uBg;
+            vec2 c = (vUv - 0.5) * 2.0;
+            c.x *= uAspect;
+            col += uP * 0.03 * exp(-dot(c - vec2(0.0, 0.2), c - vec2(0.0, 0.2)) * 1.3);
+            col += ribbon(q, 0.0, uP, 0.85);
+            col += ribbon(q, 1.0, mix(uP, uL, 0.55), 0.75);
+            col += ribbon(q, 2.0, uP, 1.0);
+            col += ribbon(q, 3.0, mix(uP, uL, 0.25), 0.55);
+            col *= 1.0 + uFlash * 1.4;
+            gl_FragColor = vec4(col, 1.0);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+            gl_FragColor.rgb += (h21(gl_FragCoord.xy + fract(uTime * 7.0) * 61.0) - 0.5) * (1.6 / 255.0);
+          }
+        `,
+      });
+      const bg = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bgMat);
+      bg.frustumCulled = false;
+      bg.renderOrder = -1000;
+      scene.add(bg);
+
+      // ------------------------------------------------------------------ lights
+      const key = new THREE.DirectionalLight(0xffffff, 2.2);
+      key.position.set(4, 7, 6);
+      scene.add(key);
+      const rim = new THREE.DirectionalLight(C(HEX.light), 3.0);
+      rim.position.set(-5, 3, -6);
+      scene.add(rim);
+
+      // ------------------------------------------------------------------ materials
+      const glass = (o = {}) =>
+        new THREE.MeshPhysicalMaterial({
+          color: 0xffffff,
+          metalness: 0,
+          roughness: o.roughness ?? 0.035,
+          transmission: 1,
+          thickness: o.thickness ?? 2,
+          ior: 1.5,
+          dispersion: o.dispersion ?? 1.0,
+          clearcoat: 1,
+          clearcoatRoughness: 0.02,
+          attenuationColor: C(o.att ?? HEX.light),
+          attenuationDistance: o.attDist ?? 5,
+          specularIntensity: 1,
+          envMapIntensity: o.env ?? 1.25,
+        });
+
+      const mat = {
+        dark: new THREE.MeshStandardMaterial({ color: C("#1c1830"), metalness: 0.75, roughness: 0.42, envMapIntensity: 0.9 }),
+        alu: new THREE.MeshStandardMaterial({ color: C("#57526e"), metalness: 0.9, roughness: 0.34, envMapIntensity: 0.9 }),
+        violet: new THREE.MeshStandardMaterial({ color: C(HEX.primary), metalness: 0.55, roughness: 0.3, envMapIntensity: 1.0 }),
+        silver: new THREE.MeshStandardMaterial({ color: C("#dcd8ea"), metalness: 1, roughness: 0.22, envMapIntensity: 1.0 }),
+        black: new THREE.MeshStandardMaterial({ color: C("#0e0b16"), metalness: 0.3, roughness: 0.55, envMapIntensity: 0.7 }),
+        lime: new THREE.MeshBasicMaterial({ color: C(HEX.accent, 1.5) }),
+      };
+
+      function radialTexture(stops, size = 256) {
+        const c = document.createElement("canvas");
+        c.width = c.height = size;
+        const g = c.getContext("2d");
+        const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+        for (const [o, col] of stops) grad.addColorStop(o, col);
+        g.fillStyle = grad;
+        g.fillRect(0, 0, size, size);
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+      const glowTex = radialTexture([
+        [0, "rgba(255,255,255,1)"],
+        [0.25, "rgba(255,255,255,0.45)"],
+        [0.6, "rgba(255,255,255,0.08)"],
+        [1, "rgba(255,255,255,0)"],
+      ]);
+      // Additive glows stay in the opaque list (transparent:false) so the glass transmission pass sees them.
+      const additive = (color, k, map = glowTex) =>
+        new THREE.MeshBasicMaterial({
+          color: C(color, k),
+          map,
+          blending: THREE.AdditiveBlending,
+          transparent: false,
+          depthWrite: false,
+          toneMapped: true,
+        });
+
+      // ------------------------------------------------------------------ font (Cyrillic TTF -> typeface)
+      const fontJson = await new TTFLoader().loadAsync("assets/fonts/Inter_900Black.ttf");
+      const font = new Font(fontJson);
+
+      // Creased normals round the bevels, but they also bend the big flat caps (long thin triangles -> visible facets).
+      // Give every cap triangle its exact face normal back.
+      function flattenCaps(g) {
+        const pos = g.attributes.position;
+        const nor = g.attributes.normal;
+        const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+        const cb = new THREE.Vector3(), ab = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i += 3) {
+          a.fromBufferAttribute(pos, i);
+          b.fromBufferAttribute(pos, i + 1);
+          c.fromBufferAttribute(pos, i + 2);
+          cb.subVectors(c, b);
+          ab.subVectors(a, b);
+          cb.cross(ab).normalize();
+          if (Math.abs(cb.z) > 0.9995) {
+            const z = Math.sign(cb.z);
+            for (let k = 0; k < 3; k++) nor.setXYZ(i + k, 0, 0, z);
+          }
+        }
+        nor.needsUpdate = true;
+      }
+
+      function glassTextGeometry(str, size, depth, bevel) {
+        let g = new TextGeometry(str, {
+          font,
+          size,
+          depth,
+          curveSegments: 16,
+          bevelEnabled: true,
+          bevelThickness: bevel * 1.25,
+          bevelSize: bevel,
+          bevelOffset: 0,
+          bevelSegments: 10,
+        });
+        g = toCreasedNormals(g, THREE.MathUtils.degToRad(32));
+        flattenCaps(g);
+        g.computeBoundingBox();
+        const c = new THREE.Vector3();
+        g.boundingBox.getCenter(c);
+        g.translate(-c.x, -c.y, -c.z);
+        g.computeBoundingBox();
+        return g;
+      }
+
+      // ================================================================== SCENE 1 — hook digit
+      const s1 = new THREE.Group();
+      scene.add(s1);
+      const digitMat = glass({ thickness: 1.5, dispersion: 1.3, attDist: 6, env: 1.5 });
+      const digitPivot = new THREE.Group();
+      s1.add(digitPivot);
+      const two = new THREE.Mesh(glassTextGeometry("2", 2.75, 0.95, 0.13), digitMat);
+      const one = new THREE.Mesh(glassTextGeometry("1", 2.75, 0.95, 0.13), digitMat);
+      one.rotation.y = Math.PI;
+      digitPivot.add(two, one);
+      const s1Glow = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), additive(HEX.primary, 0.7));
+      s1Glow.position.set(0, 0.2, -3.5);
+      s1Glow.renderOrder = -500;
+      s1.add(s1Glow);
+
+      // ================================================================== SCENE 2 — machine in a glass cube
+      const s2 = new THREE.Group();
+      scene.add(s2);
+      const CUBE = 3.2;
+      const cube = new THREE.Mesh(
+        new RoundedBoxGeometry(CUBE, CUBE, CUBE, 10, 0.34),
+        glass({ thickness: 1.0, dispersion: 1.1, attDist: 9, env: 0.62 }),
+      );
+      s2.add(cube);
+
+      const pool = new THREE.Mesh(new THREE.PlaneGeometry(7.5, 7.5), additive(HEX.primary, 0.5));
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.y = -CUBE / 2 - 0.12;
+      pool.renderOrder = 5;
+      s2.add(pool);
+
+      const rbox = (w, h, d, m, r = 0.02, seg = 2) => new THREE.Mesh(new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2, h / 2, d / 2) * 0.999), m);
+      const cyl = (rt, rb, h, m, s = 32) => new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, s), m);
+      const at = (o, x, y, z) => (o.position.set(x, y, z), o);
+
+      const machine = new THREE.Group();
+      machine.position.y = -0.8;
+      s2.add(machine);
+
+      // frame
+      for (const sx of [-1, 1]) machine.add(at(rbox(0.18, 0.26, 2.32, mat.dark, 0.04), sx * 1.22, 0.13, 0));
+      for (const sz of [-1, 1]) machine.add(at(rbox(2.62, 0.2, 0.16, mat.dark, 0.04), 0, 0.1, sz * 1.08));
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) machine.add(at(cyl(0.07, 0.08, 0.06, mat.black, 20), sx * 1.22, -0.03, sz * 1.08));
+      machine.add(at(rbox(2.26, 0.07, 2.02, mat.alu, 0.02), 0, 0.235, 0));
+      for (let i = 0; i < 7; i++) machine.add(at(rbox(0.035, 0.012, 2.0, mat.black, 0.005), -0.96 + i * 0.32, 0.272, 0));
+      for (const sx of [-1, 1]) machine.add(at(rbox(0.05, 0.035, 2.3, mat.silver, 0.012), sx * 1.22, 0.28, 0));
+      machine.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.018, 12, 8), mat.lime), 1.22, 0.3, 1.1));
+
+      // workpiece with a live engraving canvas on its top face
+      const WP = { w: 1.5, d: 1.15, y: 0.3, z: 0.05 };
+      const work = new THREE.Group();
+      work.position.set(0, WP.y, WP.z);
+      machine.add(work);
+      work.add(rbox(WP.w, 0.06, WP.d, new THREE.MeshStandardMaterial({ color: C("#8f87ad"), roughness: 0.7, metalness: 0 }), 0.012));
+      const CW = 1024;
+      const CH = Math.round((CW * WP.d) / WP.w);
+      const mapCanvas = document.createElement("canvas");
+      mapCanvas.width = CW;
+      mapCanvas.height = CH;
+      const glowCanvas = document.createElement("canvas");
+      glowCanvas.width = CW;
+      glowCanvas.height = CH;
+      const baseCanvas = document.createElement("canvas");
+      baseCanvas.width = CW;
+      baseCanvas.height = CH;
+      {
+        const g = baseCanvas.getContext("2d");
+        const grad = g.createLinearGradient(0, 0, CW, CH);
+        grad.addColorStop(0, "#a49bc8");
+        grad.addColorStop(1, "#8d84b2");
+        g.fillStyle = grad;
+        g.fillRect(0, 0, CW, CH);
+        for (let i = 0; i < 90; i++) {
+          g.strokeStyle = `rgba(90,70,150,${0.025 + 0.04 * hash(i)})`;
+          g.lineWidth = 1 + 2 * hash(i + 7);
+          const y = hash(i + 3) * CH;
+          g.beginPath();
+          g.moveTo(0, y);
+          g.bezierCurveTo(CW * 0.3, y + 14 * (hash(i + 1) - 0.5), CW * 0.7, y - 14 * (hash(i + 2) - 0.5), CW, y + 8 * (hash(i + 4) - 0.5));
+          g.stroke();
+        }
+      }
+      const mapTex = new THREE.CanvasTexture(mapCanvas);
+      mapTex.colorSpace = THREE.SRGBColorSpace;
+      mapTex.anisotropy = 8;
+      const glowTexW = new THREE.CanvasTexture(glowCanvas);
+      glowTexW.colorSpace = THREE.SRGBColorSpace;
+      const top = new THREE.Mesh(
+        new THREE.PlaneGeometry(WP.w, WP.d),
+        new THREE.MeshStandardMaterial({
+          map: mapTex,
+          emissive: C("#ffffff"),
+          emissiveMap: glowTexW,
+          emissiveIntensity: 3.2,
+          roughness: 0.78,
+          metalness: 0,
+          envMapIntensity: 0.55,
+        }),
+      );
+      top.rotation.x = -Math.PI / 2;
+      top.position.y = 0.0305;
+      work.add(top);
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) {
+          work.add(at(rbox(0.13, 0.06, 0.09, mat.violet, 0.015), sx * 0.8, 0.02, sz * 0.52));
+          work.add(at(cyl(0.014, 0.014, 0.012, mat.lime, 12), sx * 0.8, 0.056, sz * 0.52));
+        }
+
+      // gantry (Y travel), carriage (X), Z axis
+      const gantry = new THREE.Group();
+      machine.add(gantry);
+      for (const sx of [-1, 1]) {
+        gantry.add(at(rbox(0.12, 1.25, 0.46, mat.violet, 0.03), sx * 1.22, 0.885, 0));
+        gantry.add(at(rbox(0.16, 0.1, 0.5, mat.dark, 0.02), sx * 1.22, 0.3, 0));
+      }
+      gantry.add(at(rbox(2.56, 0.26, 0.22, mat.alu, 0.03), 0, 1.42, 0));
+      for (const y of [1.36, 1.49]) gantry.add(at(rbox(2.36, 0.03, 0.03, mat.silver, 0.01), 0, y, 0.125));
+      const screw = cyl(0.016, 0.016, 2.3, mat.silver, 12);
+      screw.rotation.z = Math.PI / 2;
+      gantry.add(at(screw, 0, 1.425, 0.13));
+      gantry.add(at(rbox(0.22, 0.22, 0.22, mat.black, 0.02), 1.42, 1.42, 0));
+      gantry.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.016, 12, 8), mat.lime), 1.42, 1.5, 0.112));
+      const carriage = new THREE.Group();
+      gantry.add(carriage);
+      carriage.add(at(rbox(0.46, 0.5, 0.06, mat.violet, 0.02), 0, 1.36, 0.165));
+      const zaxis = new THREE.Group();
+      carriage.add(zaxis);
+      zaxis.add(at(rbox(0.3, 0.64, 0.06, mat.dark, 0.02), 0, 1.18, 0.215));
+      const holderY = 0.98;
+      const holderZ = 0.36;
+      zaxis.add(at(cyl(0.165, 0.165, 0.14, mat.alu, 40), 0, holderY + 0.02, holderZ));
+
+      // spindle module
+      const spindle = new THREE.Group();
+      spindle.position.set(0, holderY, holderZ);
+      zaxis.add(spindle);
+      spindle.add(at(cyl(0.135, 0.135, 0.56, mat.silver, 40), 0, -0.05, 0));
+      spindle.add(at(cyl(0.142, 0.142, 0.05, mat.violet, 40), 0, 0.25, 0));
+      spindle.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), mat.lime), 0, 0.25, 0.142));
+      spindle.add(at(cyl(0.07, 0.1, 0.08, mat.alu, 32), 0, -0.37, 0));
+      const spinner = new THREE.Group();
+      spinner.position.y = -0.44;
+      spindle.add(spinner);
+      spinner.add(cyl(0.062, 0.062, 0.06, mat.silver, 6));
+      spinner.add(at(rbox(0.02, 0.02, 0.02, mat.lime, 0.004), 0.055, 0, 0));
+      spinner.add(at(cyl(0.021, 0.021, 0.22, mat.silver, 12), 0, -0.14, 0));
+      spinner.add(at(rbox(0.006, 0.18, 0.044, mat.black, 0.002), 0, -0.15, 0));
+      const SPINDLE_TIP = -0.69;
+
+      // laser module
+      const laser = new THREE.Group();
+      laser.position.set(0, holderY, holderZ);
+      zaxis.add(laser);
+      laser.add(at(rbox(0.3, 0.4, 0.3, mat.black, 0.035, 3), 0, 0, 0));
+      for (let i = 0; i < 6; i++) laser.add(at(rbox(0.018, 0.13, 0.28, mat.violet, 0.006), -0.11 + i * 0.044, 0.26, 0));
+      const fan = cyl(0.1, 0.1, 0.02, mat.dark, 32);
+      fan.rotation.x = Math.PI / 2;
+      laser.add(at(fan, 0, 0.04, 0.155));
+      laser.add(at(rbox(0.12, 0.016, 0.012, mat.lime, 0.004), 0, -0.13, 0.152));
+      laser.add(at(cyl(0.045, 0.045, 0.14, mat.silver, 24), 0, -0.27, 0));
+      laser.add(at(cyl(0.045, 0.022, 0.06, mat.alu, 24), 0, -0.37, 0));
+      const LASER_TIP = -0.4;
+      const beamCore = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1, 12, 1, true), new THREE.MeshBasicMaterial({ color: C("#ffffff", 6) }));
+      const beamGlowMat = new THREE.MeshBasicMaterial({ color: C(HEX.primary, 2.2), blending: THREE.AdditiveBlending, transparent: false, depthWrite: false });
+      const beamGlow = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 16, 1, true), beamGlowMat);
+      beamGlow.renderOrder = 20;
+      const hotMat = additive(HEX.light, 4);
+      const hot = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), hotMat);
+      hot.rotation.x = -Math.PI / 2;
+      hot.renderOrder = 21;
+      const hotCore = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.09), additive(HEX.accent, 5));
+      hotCore.rotation.x = -Math.PI / 2;
+      hotCore.renderOrder = 22;
+      const laserLight = new THREE.PointLight(C(HEX.light), 0, 2.2, 1.6);
+      laser.add(beamCore, beamGlow, hot, hotCore, laserLight);
+
+      // chips (milling) and sparks (laser): deterministic particles, state looked up from t
+      const NCHIP = 70;
+      const chipGeo = new THREE.BufferGeometry();
+      chipGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(NCHIP * 3), 3));
+      const chips = new THREE.Points(chipGeo, new THREE.PointsMaterial({ color: C("#e6e0fa"), size: 0.045, sizeAttenuation: true }));
+      chips.frustumCulled = false;
+      machine.add(chips);
+      const NSPARK = 60;
+      const sparkGeo = new THREE.BufferGeometry();
+      sparkGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(NSPARK * 3), 3));
+      sparkGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(NSPARK * 3), 3));
+      const sparks = new THREE.Points(
+        sparkGeo,
+        new THREE.PointsMaterial({ size: 0.08, map: glowTex, vertexColors: true, blending: THREE.AdditiveBlending, transparent: false, depthWrite: false }),
+      );
+      sparks.frustumCulled = false;
+      sparks.renderOrder = 23;
+      machine.add(sparks);
+
+      // ------------------------------------------------------------------ tool paths (work coords: x right, z toward viewer)
+      function makePath(polys) {
+        const segs = [];
+        let L = 0;
+        let prev = null;
+        for (const poly of polys) {
+          if (prev) {
+            const a = prev, b = poly[0];
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            segs.push({ a, b, s0: L, len, on: false });
+            L += len;
+          }
+          for (let i = 1; i < poly.length; i++) {
+            const a = poly[i - 1], b = poly[i];
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (len < 1e-6) continue;
+            segs.push({ a, b, s0: L, len, on: true });
+            L += len;
+          }
+          prev = poly[poly.length - 1];
+        }
+        return { segs, L, start: polys[0][0], end: prev };
+      }
+      function pathAt(path, p) {
+        const s = clamp01(p) * path.L;
+        let lo = 0, hi = path.segs.length - 1;
+        while (lo < hi) {
+          const mid = (lo + hi + 1) >> 1;
+          if (path.segs[mid].s0 <= s) lo = mid;
+          else hi = mid - 1;
+        }
+        const g = path.segs[lo];
+        const k = g.len > 0 ? clamp01((s - g.s0) / g.len) : 0;
+        return { x: lerp(g.a[0], g.b[0], k), z: lerp(g.a[1], g.b[1], k), on: g.on };
+      }
+      // Rounded rectangle, starting on the front edge and running round each corner arc.
+      function roundedRect(hw, hd, r, n = 10) {
+        const pts = [[-hw + r, hd]];
+        const corners = [
+          [hw - r, hd - r, Math.PI / 2],
+          [hw - r, -hd + r, 0],
+          [-hw + r, -hd + r, -Math.PI / 2],
+          [-hw + r, hd - r, -Math.PI],
+        ];
+        for (const [cx, cz, a0] of corners)
+          for (let i = 0; i <= n; i++) {
+            const a = a0 - (i / n) * (Math.PI / 2);
+            pts.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+          }
+        pts.push([-hw + r, hd]);
+        return pts;
+      }
+      const millPath = makePath([roundedRect(0.62, 0.46, 0.14)]);
+      const cutPath = makePath([roundedRect(0.5, 0.34, 0.1)]);
+      const engravePath = (() => {
+        const shapes = font.generateShapes("2в1", 0.42);
+        const contours = [];
+        for (const sh of shapes) {
+          contours.push(sh.getPoints(8));
+          for (const hole of sh.holes) contours.push(hole.getPoints(8));
+        }
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const c of contours) for (const v of c) { minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x); minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y); }
+        const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+        return makePath(contours.map((c) => {
+          const pts = c.map((v) => [v.x - cx, -(v.y - cy)]);
+          pts.push(pts[0]);
+          return pts;
+        }));
+      })();
+
+      // ------------------------------------------------------------------ machine state = f(t)
+      const PARK = [0, 0.55];
+      const PARK2 = [0, -0.62];
+      const ZUP = 0.22;
+      function headState(t) {
+        let x = PARK[0], z = PARK[1], zh = ZUP, beam = 0, cutting = false;
+        const mix2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+        if (t >= T.travel1[0]) {
+          const ms = millPath.start;
+          [x, z] = mix2(PARK, ms, inOutCubic(seg(t, ...T.travel1)));
+        }
+        if (t >= T.plunge[0]) zh = lerp(ZUP, 0.01, outCubic(seg(t, ...T.plunge)));
+        if (t >= T.mill[0]) {
+          const p = pathAt(millPath, seg(t, ...T.mill));
+          x = p.x; z = p.z;
+          cutting = t < T.mill[1];
+        }
+        if (t >= T.retract[0]) zh = lerp(0.01, ZUP, inOutCubic(seg(t, ...T.retract)));
+        if (t >= T.travel2[0]) {
+          [x, z] = mix2(millPath.end, engravePath.start, inOutCubic(seg(t, ...T.travel2)));
+          zh = lerp(ZUP, 0.0, inOutCubic(seg(t, ...T.travel2)));
+        }
+        if (t >= T.engrave[0]) {
+          const p = pathAt(engravePath, seg(t, ...T.engrave));
+          x = p.x; z = p.z;
+          beam = t < T.engrave[1] && p.on ? 1 : 0;
+        }
+        if (t >= T.travel3[0]) {
+          [x, z] = mix2(engravePath.end, cutPath.start, inOutCubic(seg(t, ...T.travel3)));
+          beam = 0;
+        }
+        if (t >= T.cut[0]) {
+          const p = pathAt(cutPath, seg(t, ...T.cut));
+          x = p.x; z = p.z;
+          beam = t < T.cut[1] ? 1.5 : 0;
+        }
+        if (t >= T.park[0]) {
+          [x, z] = mix2(cutPath.end, PARK2, inOutCubic(seg(t, ...T.park)));
+          zh = lerp(0.0, ZUP, inOutCubic(seg(t, T.park[0], T.park[0] + 0.4)));
+          beam = 0;
+        }
+        return { x, z, zh, beam, cutting };
+      }
+      // tool point in machine coords for a given head state
+      const toolPoint = (h, tipY) => [h.x, holderY + h.zh + tipY, h.z + WP.z];
+
+      // ------------------------------------------------------------------ engraving canvas = f(t)
+      const mapCtx = mapCanvas.getContext("2d");
+      const glowCtx = glowCanvas.getContext("2d");
+      const toPx = (v) => [(v[0] / WP.w + 0.5) * CW, (v[1] / WP.d + 0.5) * CH];
+      function strokePath(ctx, path, p, style) {
+        const sNow = clamp01(p) * path.L;
+        ctx.beginPath();
+        let open = false;
+        for (const g of path.segs) {
+          if (g.s0 >= sNow) break;
+          if (!g.on) { open = false; continue; }
+          const k = Math.min(1, (sNow - g.s0) / g.len);
+          const a = toPx(g.a);
+          const b = toPx([lerp(g.a[0], g.b[0], k), lerp(g.a[1], g.b[1], k)]);
+          if (!open) { ctx.moveTo(a[0], a[1]); open = true; }
+          ctx.lineTo(b[0], b[1]);
+        }
+        Object.assign(ctx, style);
+        ctx.stroke();
+      }
+      function glowPath(ctx, path, t, win, width, tau) {
+        const p = seg(t, ...win);
+        if (p <= 0) return;
+        const sNow = p * path.L;
+        const dur = win[1] - win[0];
+        ctx.lineCap = "round";
+        ctx.lineWidth = width;
+        for (const g of path.segs) {
+          if (g.s0 >= sNow) break;
+          if (!g.on) continue;
+          const passT = win[0] + ((g.s0 + g.len * 0.5) / path.L) * dur;
+          const age = Math.max(0, t - passT);
+          const a = 0.95 * Math.exp(-age / tau) + 0.22 * Math.exp(-age / 3.5);
+          if (a < 0.01) continue;
+          const k = Math.min(1, (sNow - g.s0) / g.len);
+          const pa = toPx(g.a);
+          const pb = toPx([lerp(g.a[0], g.b[0], k), lerp(g.a[1], g.b[1], k)]);
+          ctx.strokeStyle = `rgba(190,170,255,${a.toFixed(3)})`;
+          ctx.beginPath();
+          ctx.moveTo(pa[0], pa[1]);
+          ctx.lineTo(pb[0], pb[1]);
+          ctx.stroke();
+        }
+      }
+      let workKey = null;
+      function drawWork(t) {
+        // Before the first cut the board is clean: one key for all those frames. After it, every frame redraws from t.
+        const key = t < T.mill[0] ? "clean" : t;
+        if (key === workKey) return;
+        workKey = key;
+        mapCtx.drawImage(baseCanvas, 0, 0);
+        const pm = seg(t, ...T.mill);
+        if (pm > 0) {
+          strokePath(mapCtx, millPath, pm, { strokeStyle: "#efeaff", lineWidth: 16, lineCap: "round", lineJoin: "round" });
+          strokePath(mapCtx, millPath, pm, { strokeStyle: "#3b3160", lineWidth: 11, lineCap: "round", lineJoin: "round" });
+          strokePath(mapCtx, millPath, pm, { strokeStyle: "#241c40", lineWidth: 5, lineCap: "round", lineJoin: "round" });
+        }
+        const pe = seg(t, ...T.engrave);
+        if (pe > 0) strokePath(mapCtx, engravePath, pe, { strokeStyle: "#1d1533", lineWidth: 8, lineCap: "round", lineJoin: "round" });
+        const pc = seg(t, ...T.cut);
+        if (pc > 0) strokePath(mapCtx, cutPath, pc, { strokeStyle: "#120d20", lineWidth: 6, lineCap: "round", lineJoin: "round" });
+        mapTex.needsUpdate = true;
+
+        glowCtx.fillStyle = "#000";
+        glowCtx.fillRect(0, 0, CW, CH);
+        glowPath(glowCtx, engravePath, t, T.engrave, 11, 0.45);
+        glowPath(glowCtx, cutPath, t, T.cut, 12, 0.35);
+        glowTexW.needsUpdate = true;
+      }
+
+      // ------------------------------------------------------------------ particles = f(t)
+      function updateParticles(t) {
+        const cp = chipGeo.attributes.position.array;
+        for (let i = 0; i < NCHIP; i++) {
+          const life = 0.42 + 0.25 * hash(i + 11);
+          const age = ((t + hash(i) * life) % life + life) % life;
+          const tb = t - age;
+          const hb = headState(tb);
+          const on = hb.cutting && tb >= T.mill[0] && tb < T.mill[1] && t < T.mill[1] + 0.6;
+          if (!on) { cp[i * 3 + 1] = -50; continue; }
+          const [px, py, pz] = toolPoint(hb, SPINDLE_TIP);
+          const ang = hash(i + 3) * Math.PI * 2;
+          const sp = 0.6 + 0.9 * hash(i + 5);
+          const vy = 0.5 + 0.9 * hash(i + 9);
+          cp[i * 3] = px + Math.cos(ang) * sp * age;
+          cp[i * 3 + 1] = Math.max(WP.y + 0.035, py + 0.03 + vy * age - 4.2 * age * age);
+          cp[i * 3 + 2] = pz + Math.sin(ang) * sp * age;
+        }
+        chipGeo.attributes.position.needsUpdate = true;
+
+        const spp = sparkGeo.attributes.position.array;
+        const spc = sparkGeo.attributes.color.array;
+        const lime = C(HEX.accent), white = new THREE.Color(1, 1, 1), vio = C(HEX.light);
+        for (let i = 0; i < NSPARK; i++) {
+          const life = 0.18 + 0.2 * hash(i + 21);
+          const age = ((t + hash(i + 40) * life) % life + life) % life;
+          const tb = t - age;
+          const hb = headState(tb);
+          if (hb.beam <= 0 || tb < T.engrave[0]) { spp[i * 3 + 1] = -50; spc[i * 3] = spc[i * 3 + 1] = spc[i * 3 + 2] = 0; continue; }
+          const [px, , pz] = toolPoint(hb, 0);
+          const ang = hash(i + 33) * Math.PI * 2;
+          const sp = (0.5 + 1.4 * hash(i + 35)) * (0.7 + 0.3 * hb.beam);
+          spp[i * 3] = px + Math.cos(ang) * sp * age;
+          spp[i * 3 + 1] = WP.y + 0.04 + (0.7 + hash(i + 37)) * age - 3.0 * age * age;
+          spp[i * 3 + 2] = pz + Math.sin(ang) * sp * age;
+          const fade = 1 - age / life;
+          const c = (i % 3 === 0 ? lime : i % 3 === 1 ? white : vio).clone().multiplyScalar(2.5 * fade);
+          spc[i * 3] = c.r; spc[i * 3 + 1] = c.g; spc[i * 3 + 2] = c.b;
+        }
+        sparkGeo.attributes.position.needsUpdate = true;
+        sparkGeo.attributes.color.needsUpdate = true;
+      }
+
+      // ================================================================== SCENE 3 — glass title + CTA
+      const s3 = new THREE.Group();
+      scene.add(s3);
+      const titleMat = glass({ thickness: 1.5, dispersion: 1.2, attDist: 9, env: 1.6 });
+      const titleGeo = glassTextGeometry("2в1", 2.0, 0.9, 0.12);
+      const title = new THREE.Mesh(titleGeo, titleMat);
+      {
+        const bb = titleGeo.boundingBox;
+        const wNow = bb.max.x - bb.min.x;
+        const want = 4.75 * 0.78; // ~78% of the frame width at the title's distance
+        title.scale.setScalar(want / wNow);
+      }
+      const titleGroup = new THREE.Group();
+      titleGroup.add(title);
+      s3.add(titleGroup);
+      const s3Glow = new THREE.Mesh(new THREE.PlaneGeometry(15, 7), additive(HEX.primary, 0.9));
+      s3Glow.position.set(0, 0.6, -3.5);
+      s3Glow.renderOrder = -500;
+      s3.add(s3Glow);
+
+      const pill = new THREE.Group();
+      s3.add(pill);
+      const pillGlass = new THREE.Mesh(new RoundedBoxGeometry(3.0, 0.78, 0.78, 12, 0.389), glass({ thickness: 0.9, dispersion: 0.6, att: HEX.primary, attDist: 2.2, env: 1.4 }));
+      pillGlass.scale.z = 0.62;
+      pill.add(pillGlass);
+      const coreShape = new THREE.Shape();
+      {
+        const w = 2.7, h = 0.5, r = 0.25;
+        coreShape.moveTo(-w / 2 + r, -h / 2);
+        coreShape.lineTo(w / 2 - r, -h / 2);
+        coreShape.absarc(w / 2 - r, 0, r, -Math.PI / 2, Math.PI / 2, false);
+        coreShape.lineTo(-w / 2 + r, h / 2);
+        coreShape.absarc(-w / 2 + r, 0, r, Math.PI / 2, (3 * Math.PI) / 2, false);
+      }
+      const coreMat = new THREE.MeshBasicMaterial({ color: C(HEX.primary, 1.1) });
+      const pillCore = new THREE.Mesh(new THREE.ShapeGeometry(coreShape, 24), coreMat);
+      pillCore.position.z = -0.05;
+      pill.add(pillCore);
+      const pillHalo = new THREE.Mesh(new THREE.PlaneGeometry(6, 2.6), additive(HEX.primary, 0.6));
+      pillHalo.position.z = -0.6;
+      pillHalo.renderOrder = -400;
+      pill.add(pillHalo);
+      const PILL_Y = -0.9;
+
+      // ------------------------------------------------------------------ DOM refs
+      const flashEl = document.getElementById("flash");
+      const vblurStd = document.getElementById("vblur-std");
+      const hud = document.getElementById("hud");
+      const kicker = document.querySelector("#kicker .kicker");
+      const kickerClip = document.getElementById("kicker");
+      const ctaClip = document.getElementById("cta");
+      const ctaLabel = document.querySelector("#cta .cta-label");
+      const ctaSub = document.querySelector("#cta .cta-sub");
+      const kickerStart = parseFloat(kickerClip.dataset.start);
+      const ctaStart = parseFloat(ctaClip.dataset.start);
+
+      // ------------------------------------------------------------------ captions = f(t)
+      function updateCaptions(t) {
+        for (const c of captions) {
+          const u = t - c.start;
+          if (u < 0 || u >= c.dur) { c.plate.style.opacity = "0"; continue; }
+          const outK = seg(u, c.dur - 0.2, c.dur);
+          let s, dy;
+          if (c.accent) {
+            s = lerp(1.32, 1, outBack(seg(u, 0, 0.38), 2.2));
+            dy = 0;
+          } else if (c.mode === 0) {
+            s = lerp(0.86, 1, outBack(seg(u, 0, 0.42), 1.9));
+            dy = 0;
+          } else {
+            s = 1;
+            dy = lerp(46, 0, outExpo(seg(u, 0, 0.5)));
+          }
+          s *= lerp(1, 0.96, outK);
+          const op = clamp01(u / 0.1) * (1 - outK);
+          c.plate.style.opacity = op.toFixed(3);
+          c.plate.style.transform = `translate(-50%, -50%) translateY(${dy.toFixed(2)}px) scale(${s.toFixed(4)})`;
+          c.words.forEach((w, i) => {
+            const k = outExpo(seg(u, 0.04 + i * 0.075, 0.24 + i * 0.075));
+            const blur = 10 * (1 - k) + 8 * outK;
+            w.style.opacity = (k * (1 - outK)).toFixed(3);
+            w.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : "none";
+          });
+        }
+      }
+
+      // ------------------------------------------------------------------ the frame: render(t)
+      const tmpV = new THREE.Vector3();
+      const tmpT = new THREE.Vector3();
+      // Orbit speed (rad/s) along the scene; the angle is its integral, so it is a pure function of t.
+      const PHI0 = -0.62;
+      const S2_VEL = [
+        [6.8, 0.16],
+        [12.3, 0.14],
+        [12.8, 0.05],
+        [16.8, 0.05],
+        [18.3, 0.45],
+        [23, 0.45],
+      ];
+      const velAt = (t) => {
+        if (t <= S2_VEL[0][0]) return S2_VEL[0][1];
+        for (let i = 1; i < S2_VEL.length; i++) {
+          if (t <= S2_VEL[i][0]) {
+            const [t0, v0] = S2_VEL[i - 1], [t1, v1] = S2_VEL[i];
+            return lerp(v0, v1, smooth((t - t0) / (t1 - t0)));
+          }
+        }
+        return S2_VEL[S2_VEL.length - 1][1];
+      };
+      const orbitAngle = (t) => {
+        const t0 = 6.8;
+        if (t <= t0) return PHI0;
+        const n = 240;
+        const dt = (t - t0) / n;
+        let a = PHI0;
+        for (let i = 0; i < n; i++) a += velAt(t0 + (i + 0.5) * dt) * dt;
+        return a;
+      };
+      const CAM_R = 13.4;
+      const CAM_Y = 3.1;
+      const cubeC = new THREE.Vector3(0, -0.2, 0);
+      // fixed look points (s2-local): the tool holder during the head swap, and the board centre
+      const swapPoint = (() => {
+        const tp = toolPoint(headState(13.5), -0.1);
+        return new THREE.Vector3(tp[0], machine.position.y + tp[1], tp[2]);
+      })();
+      const workCenter = new THREE.Vector3(0, machine.position.y + WP.y, WP.z);
+      // the cube flies in along the camera's line of sight at the moment of the cut
+      const flyDir = new THREE.Vector3(Math.sin(PHI0) * CAM_R, CAM_Y + 0.2, Math.cos(PHI0) * CAM_R).normalize();
+
+      function render(t) {
+        const flash = flashAt(t);
+        const shake = shakeAt(t);
+        const sceneIdx = t < T.cut1 ? 1 : t < T.cut2 ? 2 : 3;
+
+        s1.visible = sceneIdx === 1;
+        s2.visible = sceneIdx === 2;
+        s3.visible = sceneIdx === 3;
+
+        // camera float, always on
+        const fx = 0.11 * Math.sin(t * 0.53 + 0.4) + 0.05 * Math.sin(t * 1.31 + 2.1);
+        const fy = 0.08 * Math.sin(t * 0.71 + 1.3) + 0.03 * Math.sin(t * 1.77);
+        const fz = 0.1 * Math.sin(t * 0.37 + 0.7);
+        let viewShift = 0;
+
+        if (sceneIdx === 1) {
+          // ---- hook: digit slams in, flips 2 -> 1, then dives through the lens
+          let z;
+          if (t < T.hookImpact) z = lerp(-16, 0.9, Math.pow(seg(t, 0, T.hookImpact), 2));
+          else z = lerp(0.9, 0, outBack(seg(t, T.hookImpact, T.hookImpact + 0.65), 2.2));
+          const exitK = inCubic(seg(t, ...T.s1Exit));
+          z = lerp(z, 13.6, exitK);
+          const arrive = seg(t, 0, T.hookImpact);
+          digitPivot.position.set(0, 0.35, z);
+          const squash = t >= T.hookImpact ? 0.07 * Math.exp(-(t - T.hookImpact) / 0.09) : 0;
+          digitPivot.scale.set(1 + squash, 1 - squash * 0.6, 1);
+          const flipK = outBack(seg(t, ...T.flip), 1.4);
+          const theta = Math.PI * flipK;
+          const drift = 0.2 * (outCubic(seg(t, 0.35, 3.5)) - 0.5) * (1 - seg(t, 3.4, 3.6));
+          digitPivot.rotation.set(lerp(-0.55, 0, outExpo(arrive)) + 0.12 * exitK, lerp(0.7, 0, outExpo(arrive)) + drift + theta, 0);
+          two.visible = theta < Math.PI / 2;
+          one.visible = !two.visible;
+          s1Glow.material.color.copy(C(HEX.primary, 0.7 + 0.6 * flash));
+          camera.position.set(fx, 0.35 + fy, 12 + fz);
+          camera.lookAt(0, 0.35, 0);
+          viewShift = 255;
+        } else if (sceneIdx === 2) {
+          // ---- machine inside the thick glass cube, camera orbits
+          const inK = outExpo(seg(t, ...T.s2In));
+          const exitK = inCubic(seg(t, ...T.s2Exit));
+          const far = 45 * (1 - inK);
+          s2.position.set(-flyDir.x * far, lerp(0, 13, exitK) - flyDir.y * far, -flyDir.z * far);
+          s2.rotation.y = lerp(-1.3, 0, inK);
+
+          const h = headState(t);
+          gantry.position.z = h.z + WP.z - holderZ;
+          carriage.position.x = h.x;
+          zaxis.position.y = h.zh;
+          const spinA = Math.PI * 2 * 1.35 * Math.max(0, Math.min(t, T.spOut[0]) - 7.7) * smooth(seg(t, 7.7, 8.4));
+          spinner.rotation.y = spinA;
+          const ko = inCubic(seg(t, ...T.spOut));
+          spindle.visible = ko < 1;
+          spindle.scale.setScalar(Math.max(0.0001, 1 - ko));
+          spindle.position.y = holderY + 0.16 * ko;
+          spindle.rotation.y = 3.2 * ko;
+          const ki = seg(t, ...T.lzIn);
+          laser.visible = ki > 0;
+          laser.scale.setScalar(Math.max(0.0001, outBack(ki, 1.8)));
+          laser.position.y = holderY + 0.3 * (1 - outExpo(ki));
+          laser.rotation.y = -2.4 * (1 - outExpo(ki));
+
+          const flick = 0.85 + 0.15 * Math.sin(t * 97.0) * Math.sin(t * 61.0 + 1.0);
+          const bOn = h.beam * flick;
+          const tipY = LASER_TIP;
+          const workTopLocal = WP.y + 0.031 - (holderY + h.zh); // in laser-local coords
+          const beamLen = Math.max(0.01, tipY - workTopLocal);
+          beamCore.visible = beamGlow.visible = hot.visible = hotCore.visible = bOn > 0;
+          beamCore.scale.y = beamGlow.scale.y = beamLen;
+          beamCore.position.y = beamGlow.position.y = tipY - beamLen / 2;
+          beamGlowMat.color.copy(C(HEX.primary, 1.6 * bOn));
+          hot.position.y = workTopLocal + 0.004;
+          hotCore.position.y = workTopLocal + 0.005;
+          hot.material.color.copy(C(HEX.light, 2.2 * bOn));
+          hotCore.material.color.copy(C(HEX.accent, 2.6 * bOn));
+          laserLight.position.y = workTopLocal + 0.06;
+          laserLight.intensity = 3.0 * bOn;
+
+          drawWork(t);
+          updateParticles(t);
+          pool.material.color.copy(C(HEX.primary, 0.42 + 0.5 * flash));
+
+          // camera: orbit + push-in on the head swap + crane up over the engraving + pull back for the hero view
+          const phi = orbitAngle(t);
+          const push = inOutCubic(seg(t, 12.45, 13.5)) - inOutCubic(seg(t, 15.4, 16.9));
+          const engr = (inOutCubic(seg(t, 14.5, 15.4)) - inOutCubic(seg(t, 17.0, 18.2))) * (1 - push);
+          const back = inOutCubic(seg(t, 18.55, 20.4));
+          const R = CAM_R - 3.9 * push - 2.4 * engr + 1.0 * back;
+          const y = CAM_Y - 1.2 * push + 2.4 * engr + 1.4 * back;
+          // look target: cube centre, the tool holder during the swap, the board while it engraves
+          const w1 = push;
+          const w2 = 0.8 * engr;
+          tmpT.copy(cubeC).multiplyScalar(1 - w1 - w2).addScaledVector(swapPoint, w1).addScaledVector(workCenter, w2);
+          camera.position.set(tmpT.x + R * Math.sin(phi) + fx, tmpT.y + y + fy, tmpT.z + R * Math.cos(phi) + fz);
+          camera.lookAt(tmpT);
+          viewShift = lerp(190, 300, Math.max(push, engr));
+        } else {
+          // ---- final: glass title rises in, CTA pill pops, press
+          const k = seg(t, ...T.s3In);
+          titleGroup.position.set(0, lerp(-8, 0.95, outBack(k, 1.3)), 0);
+          titleGroup.rotation.set(lerp(0.65, 0, outExpo(k)), lerp(-0.25, 0, outExpo(k)), 0);
+          const kp = seg(t, ...T.ctaIn);
+          const pressDown = t < T.press ? 0 : t < T.press + 0.09 ? seg(t, T.press, T.press + 0.09) : 1 - outBack(seg(t, T.press + 0.09, T.press + 0.6), 2.6);
+          const ps = Math.max(0.0001, outBack(kp, 1.7)) * (1 - 0.07 * pressDown);
+          pill.visible = kp > 0;
+          pill.scale.setScalar(ps);
+          pill.position.set(0, PILL_Y - 0.6 * (1 - outExpo(kp)), 0.3 - 0.12 * pressDown);
+          const pressGlow = t >= T.press ? Math.exp(-(t - T.press) / 0.35) : 0;
+          coreMat.color.copy(C(HEX.primary, 1.05 + 0.9 * pressGlow + 0.25 * Math.sin(t * 2.2) * smooth(seg(t, 28, 29))));
+          s3Glow.material.color.copy(C(HEX.primary, 0.9 + 0.6 * flash));
+          camera.position.set(fx, 0.2 + fy, 12.6 + fz);
+          camera.lookAt(0, 0.2, 0);
+          viewShift = 130;
+        }
+
+        // shake on accents (camera-space jitter + roll)
+        if (shake > 0.001) {
+          tmpV.set(0.15 * wobble(t, 91.7, 143.3, 0.3), 0.12 * wobble(t, 83.1, 131.9, 1.7), 0).multiplyScalar(shake);
+          tmpV.applyQuaternion(camera.quaternion);
+          camera.position.add(tmpV);
+          camera.rotateZ(0.02 * shake * wobble(t, 77.3, 119.1, 2.9));
+        }
+        camera.rotateZ(0.01 * Math.sin(t * 0.43 + 0.2));
+        camera.setViewOffset(W, H, 0, viewShift, W, H);
+        camera.updateProjectionMatrix();
+
+        scene.environmentRotation.set(0, 0.32 * t + 0.6, 0);
+        renderer.toneMappingExposure = 1.0 + 0.5 * flash;
+        bgMat.uniforms.uTime.value = t;
+        bgMat.uniforms.uFlash.value = flash;
+        // whip: the ribbons accelerate upward into the cut and decelerate after it (speeds matched at the seam)
+        bgMat.uniforms.uScroll.value = 1.2 * inCubic(seg(t, T.s2Exit[0], T.cut2)) + 1.47 * outExpo(seg(t, T.cut2, T.cut2 + 0.85));
+
+        renderer.render(scene, camera);
+
+        // ---- HTML layer
+        // whip smear: peaks on the cut, horizontal blur 0, vertical up to 22 px
+        const smear = 22 * Math.exp(-Math.pow((t - T.cut2) / 0.09, 2));
+        if (smear > 0.4) {
+          vblurStd.setAttribute("stdDeviation", `0 ${smear.toFixed(2)}`);
+          canvas.style.filter = "url(#vblur)";
+        } else {
+          canvas.style.filter = "none";
+        }
+        flashEl.style.opacity = Math.min(1, 0.62 * flash).toFixed(3);
+        const hx = 7 * shake * wobble(t, 88.1, 127.7, 4.1);
+        const hy = 6 * shake * wobble(t, 79.9, 141.3, 5.3);
+        hud.style.transform = shake > 0.001 ? `translate(${hx.toFixed(2)}px, ${hy.toFixed(2)}px)` : "none";
+        updateCaptions(t);
+
+        const ku = t - kickerStart;
+        const kk = outExpo(seg(ku, 0, 0.6));
+        kicker.style.opacity = (ku >= 0 ? kk : 0).toFixed(3);
+        kicker.style.letterSpacing = `${lerp(0.42, 0.22, kk).toFixed(3)}em`;
+        kicker.style.filter = kk < 0.999 ? `blur(${(8 * (1 - kk)).toFixed(2)}px)` : "none";
+
+        if (sceneIdx === 3 && t >= ctaStart) {
+          tmpV.set(0, 0, 0);
+          pill.localToWorld(tmpV);
+          tmpV.project(camera);
+          const sx = (tmpV.x * 0.5 + 0.5) * W;
+          const sy = (-tmpV.y * 0.5 + 0.5) * H;
+          const lk = outExpo(seg(t, ctaStart + 0.32, ctaStart + 0.75));
+          const ps = pill.scale.x;
+          ctaLabel.style.left = `${sx.toFixed(2)}px`;
+          ctaLabel.style.top = `${sy.toFixed(2)}px`;
+          ctaLabel.style.opacity = lk.toFixed(3);
+          ctaLabel.style.filter = lk < 0.999 ? `blur(${(10 * (1 - lk)).toFixed(2)}px)` : "none";
+          ctaLabel.style.transform = `translate(-50%, -50%) scale(${(ps * lerp(0.92, 1, lk)).toFixed(4)})`;
+          const sk = outExpo(seg(t, ctaStart + 0.7, ctaStart + 1.2));
+          ctaSub.style.opacity = (0.85 * sk).toFixed(3);
+          ctaSub.style.transform = `translate(-50%, -50%) translateY(${lerp(18, 0, sk).toFixed(2)}px)`;
+        }
+      }
+
+      // ------------------------------------------------------------------ warm-up, then hand over
+      for (const tWarm of [0.5, 10.5, 15.5, 24, 30]) render(tWarm);
+      await renderer.compileAsync(scene, camera);
+      const px = new Uint8Array(4);
+      renderer.getContext().readPixels(0, 0, 1, 1, renderer.getContext().RGBA, renderer.getContext().UNSIGNED_BYTE, px);
+      host.render = render;
+      host.lastT = NaN;
+      render(host.pendingT || 0);
+      host.lastT = host.pendingT || 0;
+      host.ready();
+    </script>
+  </body>
+</html>
