@@ -1,3 +1,7 @@
 node_modules/
 .hyperframes/
 renders/
+# render scratch written while out/video.mp4 is being produced
+out/.video.hf-transaction-*/
+out/work-*/
+out/*.tmp
